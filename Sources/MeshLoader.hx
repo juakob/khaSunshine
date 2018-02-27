@@ -3,19 +3,13 @@ package;
 import kha.math.FastVector2;
 import haxebullet.Bullet;
 import kha.graphics4.CullMode;
-import OgexData.BoneNode;
 import kha.Framebuffer;
 import kha.Color;
 import kha.graphics4.CompareMode;
 import kha.graphics4.ConstantLocation;
 import kha.graphics4.TextureUnit;
-import kha.graphics4.FragmentShader;
-import kha.graphics4.IndexBuffer;
 import kha.graphics4.PipelineState;
-import kha.graphics4.Usage;
-import kha.graphics4.VertexBuffer;
 import kha.graphics4.VertexData;
-import kha.graphics4.VertexShader;
 import kha.graphics4.VertexStructure;
 import kha.Assets;
 import kha.Shaders;
@@ -23,7 +17,6 @@ import kha.input.KeyCode;
 import kha.math.FastMatrix4;
 import kha.math.FastVector3;
 import kha.Scheduler;
-import kha.System;
 import kha.input.Keyboard;
 import kha.input.Gamepad;
 import kha.graphics4.TextureAddressing;
@@ -83,7 +76,8 @@ class MeshLoader {
 	var marioMatrixAngle:Float=-Math.PI/2;
 
 	public function new() {
-		Assets.loadEverything(start);
+		Assets.loadFont("mainfont",onFontloaded);
+		
 	}
 	
 	var shadowMap:Image;
@@ -94,9 +88,13 @@ class MeshLoader {
 	var fallRigidBody:BtRigidBody;
 
 	static inline var scale=0.225;
-	static inline var scaleCollisions=0.0225;
+	static inline var scaleCollisions = 0.0225;
+	
+	var virtualGamepad:VirtualGamepad;
+
 
 	private function start(): Void {
+		startExtracting=true;
 		var collisionConfiguration = BtDefaultCollisionConfiguration.create();
 		var dispatcher = BtCollisionDispatcher.create(collisionConfiguration);
 		var broadphase = BtDbvtBroadphase.create();
@@ -105,7 +103,11 @@ class MeshLoader {
 		dynamicsWorld.setGravity(BtVector3.create(0,-50,0));
 
 		Keyboard.get().notify(onKeyDown, onKeyUp, onKeyPress);
-		kha.input.Gamepad.get(0).notify(onAxis,onButton);
+		kha.input.Gamepad.get(0).notify(onAxis, onButton);
+		virtualGamepad = new VirtualGamepad(960, 540);
+		virtualGamepad.addStick(0, 1,  150, 540 - 150, 150);
+		virtualGamepad.addButton(0, 960 - 150, 540 - 150, 150);
+		virtualGamepad.notify(onAxis, onButton);
 		Scheduler.addTimeTask(update, 0, 1 / 60);
 		var data = new OgexData(Assets.blobs.mario_ogex.toString());
 		
@@ -119,14 +121,14 @@ class MeshLoader {
 
 		skeleton = sk[0];
 		trace("loaded");
-
+		kha.System.changeResolution(100,100);
 		
 		shadowMap=Image.createRenderTarget(256,256,TextureFormat.DEPTH16);
-		depthMap=Image.createRenderTarget(800,600,TextureFormat.DEPTH16);
+		depthMap=Image.createRenderTarget(960,540,TextureFormat.DEPTH16);
 		//depthMap.setDepthStencilFrom
-		finalTarget=Image.createRenderTarget(800,600,TextureFormat.RGBA32,DepthStencilFormat.DepthOnly,2);
+		finalTarget=Image.createRenderTarget(960,540,TextureFormat.RGBA32,DepthStencilFormat.DepthOnly,2);
 		//finalTarget.setDepthStencilFrom(depthMap);
-		blur=Image.createRenderTarget(Std.int(800/4),Std.int(600/4),TextureFormat.RGBA32,DepthStencilFormat.DepthOnly,2);
+		blur=Image.createRenderTarget(Std.int(960/4),Std.int(540/4),TextureFormat.RGBA32,DepthStencilFormat.DepthOnly,2);
 		
 		var collisionMesh:BtTriangleMesh=BtTriangleMesh.create(true,false);
 		
@@ -268,7 +270,19 @@ class MeshLoader {
 		
 		started = true;
 	}
-
+	var width:Int=960;
+	var height:Int=540;
+	public function resize(width:Int,height:Int)
+	{
+		if(this.width!=width&&this.height!=height)
+		{
+			this.width=width;
+			this.height=height;
+			virtualGamepad.resize(width,height);
+		//	finalTarget.unload();
+		//	finalTarget=Image.createRenderTarget(width,height,TextureFormat.RGBA32,DepthStencilFormat.DepthOnly,2);
+		}
+	}
 	private function onAxis(aId:Int,aValue:Float):Void{
 			if(aId==0){
 				right=false;
@@ -310,7 +324,7 @@ class MeshLoader {
 		jump=(aId==0&&aValue>0);
 		
 	}
-
+	var dir=new FastVector2();
 	function update() 
 	{
 		dynamicsWorld.stepSimulation(1 / 60);
@@ -331,6 +345,8 @@ class MeshLoader {
 		{
 			cameraAngle+=0.02;
 		}
+		dir.x=0;
+		dir.y=0;
 		var vel=fallRigidBody.getLinearVelocity();
 		var dir=new FastVector2();
 		if (left){
@@ -531,7 +547,7 @@ class MeshLoader {
 			clear =true;
 
 			var cameraMatrix=FastMatrix4.lookAt(new FastVector3(modelMatrix._30+Math.sin(cameraAngle)*200, modelMatrix._31+100, modelMatrix._32+Math.cos(cameraAngle)*200), new FastVector3(modelMatrix._30,modelMatrix._31+25 ,modelMatrix._32 ), new FastVector3(0, 1, 0));
-			var projection=FastMatrix4.perspectiveProjection(45, System.windowWidth(0) / System.windowHeight(0), 0.1, 5000);//FastMatrix4.orthogonalProjection(-25,25,-25,25,-1500,1000);
+			var projection=FastMatrix4.perspectiveProjection(45,width / height, 0.1, 5000);//FastMatrix4.orthogonalProjection(-25,25,-25,25,-1500,1000);
 			
 			for(mesh in level){
 				g.begin();
@@ -597,14 +613,41 @@ class MeshLoader {
 				g.end();
 				
 			}
-			//RenderTexture.renderTo(blur,finalTarget,0,0,1,RenderTexture.Chanel.Color,true);
+			//RenderTexture.renderTo(finalTarget,shadowMap,0,0,0.2,RenderTexture.Chanel.Color,true);
 
 			RenderTexture.renderTo(frame,finalTarget,0,0,1,RenderTexture.Chanel.Color,true);
+			
 
+		}else
+		if(fontLoaded){
+			var g2= frame.g2;
+			g2.begin(true);	
+			g2.transformation=kha.math.FastMatrix3.scale(2,2);
+			g2.font=loadFont;
+			g2.fontSize=24;
+			g2.color=kha.Color.White;
+			loadCounter=++loadCounter%4;
+			var loaded:Int=Std.int(Assets.progress*100);
+			if(startExtracting){
+				g2.drawString("extracting",100,100);
+			}else{
+				g2.drawString("loading "+loaded+"",100,100);
+			}
+			
+			g2.end();
 		}
 		
 	}
-
-	
+	var miniCharAnimation=["/","-","\"","|"];
+	var loadCounter:Int=0;
+	var fontLoaded:Bool;
+	var loadFont:kha.Font;
+	var startExtracting:Bool;
+	function onFontloaded(font:kha.Font)
+	{
+		loadFont=font;
+		fontLoaded=true;
+		Assets.loadEverything(start);
+	}
 	
 }

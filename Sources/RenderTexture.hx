@@ -73,9 +73,9 @@ class RenderTexture
 			indexBuffer.unlock();
 			
 			if (aTarget.g4.renderTargetsInvertedY()) {
-				projection = FastMatrix4.orthogonalProjection(0, 800, 600, 0, -2, 1000);
+				projection = FastMatrix4.orthogonalProjection(0, 960, 540, 0, -2, 1000);
 			} else {
-				projection = FastMatrix4.orthogonalProjection(0, 800, 0, 600, -2, 1000);
+				projection = FastMatrix4.orthogonalProjection(0, 960, 0, 540, -2, 1000);
 			}
 		}
 		
