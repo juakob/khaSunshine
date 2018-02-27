@@ -11,28 +11,8 @@ class Main {
 //	var ignore:Bool=false;
 	public static function onMouseDown(a:Int,b:Int,c:Int) 
 	{
-		
-	//	Mouse.get().remove(onMouseDown, onMouseDown, null, null);
-		#if js
-			var i = cast(js.Browser.document.getElementById('khanvas'), js.html.CanvasElement);
-			if (i != null)
-			{
-				
-				if ((cast i).webkitRequestFullscreen!= null) {
-					(cast i).webkitRequestFullscreen();
-				} else if ((cast i).mozRequestFullScreen!= null) {
-					(cast i).mozRequestFullScreen();
-				} else if ((cast i).msRequestFullscreen!= null) {
-					(cast i).msRequestFullscreen();
-				}  else
-				if (i.requestFullscreen!= null) {
-					i.requestFullscreen();
-				} 
-				SystemImpl.notifyOfFullscreenChange(sizeChange,error);
-				SystemImpl.requestFullscreen();
-			}
-			#end
-			
+		SystemImpl.notifyOfFullscreenChange(sizeChange,error);
+		SystemImpl.requestFullscreen();
 	}
 	var inFullScreen:Bool;
 	static function sizeChange():Void
